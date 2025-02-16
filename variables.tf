@@ -16,16 +16,10 @@ variable "enable_dns_hostnames" {
   default     = true
 }
 
-variable "vpc_cidr_block_a" {
+variable "vpc_cidr_block" {
   type        = string
-  description = "Base CIDR Block for VPC A"
+  description = "Base CIDR Block for VPC"
   default     = "10.1.0.0/16"
-}
-
-variable "vpc_cidr_block_b" {
-  type        = string
-  description = "Base CIDR Block for VPC B"
-  default     = "10.2.0.0/16"
 }
 
 variable "vpc_public_subnets_cidr_block" {

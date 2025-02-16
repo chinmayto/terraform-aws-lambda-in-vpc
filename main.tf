@@ -6,7 +6,7 @@ module "vpc" {
   source               = "./modules/vpc"
   name                 = "My-VPC"
   aws_region           = var.aws_region
-  vpc_cidr_block       = var.vpc_cidr_block_a #"10.1.0.0/16"
+  vpc_cidr_block       = var.vpc_cidr_block
   enable_dns_hostnames = var.enable_dns_hostnames
   aws_azs              = var.aws_azs
   common_tags          = local.common_tags
@@ -15,7 +15,28 @@ module "vpc" {
 
 
 ################################################################################
-# Create the security group for EC2 Webservers
+# Creating DynamoDB table
+################################################################################
+resource "aws_dynamodb_table" "jokes-dynamodb-table" {
+  name           = "Jokes_DynamoDB_Table"
+  billing_mode   = "PROVISIONED"
+  read_capacity  = 5
+  write_capacity = 5
+  hash_key       = "id"
+  range_key      = "timestamp"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+  attribute {
+    name = "timestamp"
+    type = "S"
+  }
+}
+
+################################################################################
+# Create the security group for Lambda Function
 ################################################################################
 resource "aws_security_group" "lambda_security_group" {
   description = "Allow traffic for Lambda Function"
@@ -43,6 +64,17 @@ resource "aws_security_group" "lambda_security_group" {
 
 }
 
+################################################################################
+# Creating VPC endpoint attached to private subnets containing Lambda Function
+################################################################################
+resource "aws_vpc_endpoint" "sqs_vpc_ep_interface" {
+  vpc_id              = module.vpc.vpc_id
+  vpc_endpoint_type   = "Interface"
+  service_name        = "com.amazonaws.${var.aws_region}.dynamodb"
+  subnet_ids          = [module.vpc.private_subnets[0], module.vpc.private_subnets[1]]
+  private_dns_enabled = false
+  security_group_ids  = [aws_security_group.lambda_security_group.id]
+}
 
 ################################################################################
 # Lambda IAM role to assume the role
@@ -61,6 +93,10 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
+
+################################################################################
+# Create policy to acess the DynamoDB
+################################################################################
 resource "aws_iam_policy" "DynamoDBAccessPolicy" {
   name        = "DynamoDBAccessPolicy"
   description = "DynamoDBAccessPolicy"
@@ -163,7 +199,8 @@ resource "aws_lambda_function" "get_joke_lambda_function" {
 
   environment {
     variables = {
-      API_URL = "https://api.chucknorris.io/jokes/random"
+      API_URL        = "https://api.chucknorris.io/jokes/random",
+      DYNAMODB_TABLE = "Jokes_DynamoDB_Table"
     }
   }
 
@@ -188,36 +225,3 @@ resource "aws_lambda_function_url" "chucknorris_function_url" {
   authorization_type = "NONE" # Change to "AWS_IAM" for restricted access
 }
 
-
-################################################################################
-# Creating Lambda Function URL for accessing it via browser
-################################################################################
-resource "aws_dynamodb_table" "jokes-dynamodb-table" {
-  name           = "Jokes_DynamoDB_Table"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 5
-  write_capacity = 5
-  hash_key       = "id"
-  range_key      = "timestamp"
-
-  attribute {
-    name = "id"
-    type = "S"
-  }
-  attribute {
-    name = "timestamp"
-    type = "S"
-  }
-}
-
-################################################################################
-# Creating VPC endpoint attached to private subnets containing Lambda Function
-################################################################################
-resource "aws_vpc_endpoint" "sqs_vpc_ep_interface" {
-  vpc_id              = module.vpc.vpc_id
-  vpc_endpoint_type   = "Interface"
-  service_name        = "com.amazonaws.${var.aws_region}.dynamodb"
-  subnet_ids          = [module.vpc.private_subnets[0], module.vpc.private_subnets[1]]
-  private_dns_enabled = false
-  security_group_ids  = [aws_security_group.lambda_security_group.id]
-}
