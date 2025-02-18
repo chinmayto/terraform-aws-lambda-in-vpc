@@ -224,4 +224,3 @@ resource "aws_lambda_function_url" "chucknorris_function_url" {
   function_name      = aws_lambda_function.get_joke_lambda_function.function_name
   authorization_type = "NONE" # Change to "AWS_IAM" for restricted access
 }
-
